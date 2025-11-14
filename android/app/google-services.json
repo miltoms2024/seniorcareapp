@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "238699465497",
+    "project_id": "seniorcareapp-b64f3",
+    "storage_bucket": "seniorcareapp-b64f3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:238699465497:android:50f08fc33d1dab17ba1388",
+        "android_client_info": {
+          "package_name": "com.example.seniorcareapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDZHxHiN4nWrmZPXuNHnwnwivqj32ET2JQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
