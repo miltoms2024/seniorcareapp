@@ -83,4 +83,5 @@ class DefaultFirebaseOptions {
     authDomain: 'seniorcareapp-b64f3.firebaseapp.com',
     storageBucket: 'seniorcareapp-b64f3.firebasestorage.app',
   );
+
 }

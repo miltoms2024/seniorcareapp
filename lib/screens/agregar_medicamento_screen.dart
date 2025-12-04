@@ -20,12 +20,15 @@ class _AgregarMedicamentoScreenState extends State<AgregarMedicamentoScreen> {
 
     if (nombre.isEmpty || hora.isEmpty || frecuencia.isEmpty) return;
 
-    await FirebaseFirestore.instance.collection('medicamentos').add({
-      'nombre': nombre,
-      'hora': hora,
-      'frecuencia': frecuencia,
+    await FirebaseFirestore.instance.collection('medicaciones_programadas').add({
+      'nombre_medicina': nombre,
+      'hora_referencia': hora,
+      'dosis': frecuencia,
+      'via': 'Oral',
+      'activo': true,
     });
 
+    if (!mounted) return;
     Navigator.pop(context);
   }
 
@@ -37,9 +40,18 @@ class _AgregarMedicamentoScreenState extends State<AgregarMedicamentoScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            TextField(controller: nombreController, decoration: const InputDecoration(labelText: 'Nombre')),
-            TextField(controller: horaController, decoration: const InputDecoration(labelText: 'Hora')),
-            TextField(controller: frecuenciaController, decoration: const InputDecoration(labelText: 'Frecuencia')),
+            TextField(
+              controller: nombreController,
+              decoration: const InputDecoration(labelText: 'Nombre'),
+            ),
+            TextField(
+              controller: horaController,
+              decoration: const InputDecoration(labelText: 'Hora'),
+            ),
+            TextField(
+              controller: frecuenciaController,
+              decoration: const InputDecoration(labelText: 'Dosis / Frecuencia'),
+            ),
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: guardarMedicamento,
