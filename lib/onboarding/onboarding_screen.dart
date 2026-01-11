@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'onboarding_controller.dart';
-import 'step_preferences.dart';
+//import 'step_preferences.dart';
+import 'step_identity.dart';
 
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
@@ -15,8 +16,10 @@ class OnboardingScreen extends StatelessWidget {
           final controller = Provider.of<OnboardingController>(context, listen: false);
 
           return Scaffold(
-            body: StepPreferences(
-              onFinish: () async {
+            //body: StepPreferences(
+            body: StepIdentity(
+
+             onNext: () async {
                 try {
                   await controller.guardarEnFirestore();
                   if (context.mounted) {

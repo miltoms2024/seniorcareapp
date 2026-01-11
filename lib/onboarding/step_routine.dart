@@ -13,10 +13,10 @@ class StepRoutine extends StatelessWidget {
     ];
 
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: const Color.fromARGB(255, 227, 217, 217),
       appBar: AppBar(
         title: const Text('Rutinas del día'),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color.fromARGB(255, 218, 225, 218),
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(16),
@@ -26,7 +26,7 @@ class StepRoutine extends StatelessWidget {
           return Card(
             margin: const EdgeInsets.symmetric(vertical: 8),
             child: ListTile(
-              leading: const Icon(Icons.access_time, color: Colors.deepPurple),
+              leading: const Icon(Icons.access_time, color: Color.fromARGB(255, 188, 175, 184)),
               title: Text(rutina['titulo']!, style: const TextStyle(fontSize: 18)),
               subtitle: Text('Horario sugerido: ${rutina['hora']}'),
               trailing: const Icon(Icons.check_circle_outline),

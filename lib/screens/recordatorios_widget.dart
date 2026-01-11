@@ -16,7 +16,7 @@ class RecordatoriosWidget extends StatelessWidget {
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: const Text('Recordatorios'),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color.fromARGB(255, 213, 230, 214),
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(16),

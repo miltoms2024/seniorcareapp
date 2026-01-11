@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'firebase_options.dart';
-import 'screens/home_screen.dart';
+import 'screens/panel_usuario.dart';        // ✅ Pantalla principal correcta
 import 'onboarding/onboarding_screen.dart';
 
 void main() async {
@@ -14,7 +14,9 @@ void main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   try {
-    if (kIsWeb || Platform.isAndroid || Platform.isIOS) {
+    // ✅ Solo iniciar sesión anónima si no hay usuario actual
+    if (FirebaseAuth.instance.currentUser == null &&
+        (kIsWeb || Platform.isAndroid || Platform.isIOS)) {
       await FirebaseAuth.instance.signInAnonymously();
     }
   } catch (e) {
@@ -47,15 +49,19 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'SeniorCareApp',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 3, 46, 47)),
         useMaterial3: true,
-        scaffoldBackgroundColor: Colors.grey[100],
+        scaffoldBackgroundColor: const Color.fromARGB(255, 238, 227, 227),
       ),
+
+      // ✅ Ahora carga PanelUsuario si ya existe usuario en Firestore
       initialRoute: inicioEnHome ? '/home' : '/onboarding',
+
       routes: {
         '/onboarding': (context) => const OnboardingScreen(),
-        '/home': (context) => const HomeScreen(),
+        '/home': (context) => const PanelUsuario(),   // ✅ Pantalla principal
       },
+
       debugShowCheckedModeBanner: false,
     );
   }

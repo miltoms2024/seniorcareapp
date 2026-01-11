@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'onboarding_controller.dart';
-import 'package:seniorcareapp/screens/home_screen.dart';
+import '../screens/panel_usuario.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class StepPreferences extends StatelessWidget {
   final VoidCallback? onFinish;
@@ -20,6 +22,8 @@ class StepPreferences extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+
+          // ✅ IDENTIDAD
           TextField(
             decoration: const InputDecoration(labelText: 'Nombre'),
             onChanged: (value) => controller.actualizarIdentidad(
@@ -45,55 +49,72 @@ class StepPreferences extends StatelessWidget {
               genero: value,
             ),
           ),
+
+          // ✅ RUTINA
           TextField(
-            decoration: const InputDecoration(labelText: 'Desayuno'),
+            decoration: const InputDecoration(labelText: 'Desayuno (ej: 7:00–9:00)'),
             onChanged: (value) => controller.actualizarRutina(
               desayuno: value,
               almuerzo: controller.almuerzo,
               cena: controller.cena,
+              dormir: controller.dormir,
             ),
           ),
           TextField(
-            decoration: const InputDecoration(labelText: 'Almuerzo'),
+            decoration: const InputDecoration(labelText: 'Almuerzo (ej: 13:00–15:00)'),
             onChanged: (value) => controller.actualizarRutina(
               desayuno: controller.desayuno,
               almuerzo: value,
               cena: controller.cena,
+              dormir: controller.dormir,
             ),
           ),
           TextField(
-            decoration: const InputDecoration(labelText: 'Cena'),
+            decoration: const InputDecoration(labelText: 'Cena (ej: 20:00–22:00)'),
             onChanged: (value) => controller.actualizarRutina(
               desayuno: controller.desayuno,
               almuerzo: controller.almuerzo,
               cena: value,
+              dormir: controller.dormir,
             ),
           ),
+
+          // ✅ NUEVO CAMPO — DORMIR–DESPERTAR
+          TextField(
+            decoration: const InputDecoration(labelText: 'Dormir–Despertar (ej: 00:30–07:00)'),
+            onChanged: (value) => controller.actualizarRutina(
+              desayuno: controller.desayuno,
+              almuerzo: controller.almuerzo,
+              cena: controller.cena,
+              dormir: value,
+            ),
+          ),
+
           const SizedBox(height: 24),
+
+          // ✅ ACTIVIDADES
           Text('Actividades favoritas:', style: Theme.of(context).textTheme.titleMedium),
           Wrap(
             spacing: 8,
             children: actividadesDisponibles.map((actividad) {
-              final seleccionada = controller.actividades.contains(actividad);
+              final seleccionada = controller.actividad == actividad;
               return FilterChip(
                 label: Text(actividad),
                 selected: seleccionada,
                 onSelected: (selected) {
-                  final nuevas = List<String>.from(controller.actividades);
-                  if (selected && !nuevas.contains(actividad)) {
-                    nuevas.add(actividad);
-                  } else if (!selected) {
-                    nuevas.remove(actividad);
-                  }
+                  final nueva = selected ? actividad : '';
                   controller.actualizarPreferencias(
-                    actividades: nuevas,
+                    actividades: [nueva],
                     energia: controller.energia,
                   );
                 },
               );
             }).toList(),
           ),
+
           const SizedBox(height: 24),
+
+          // ✅ ENERGÍA
           Text('Nivel de energía:', style: Theme.of(context).textTheme.titleMedium),
           DropdownButton<String>(
             value: controller.energia.isEmpty ? null : controller.energia,
@@ -103,28 +124,55 @@ class StepPreferences extends StatelessWidget {
             }).toList(),
             onChanged: (value) {
               controller.actualizarPreferencias(
-                actividades: controller.actividades,
+                actividades: [controller.actividad],
                 energia: value ?? '',
               );
             },
           ),
+
           const SizedBox(height: 32),
+
+          // ✅ BOTÓN SIGUIENTE
           ElevatedButton(
             onPressed: () async {
-              await controller.guardarEnFirestore();
+              final uid = FirebaseAuth.instance.currentUser?.uid;
+
+              if (uid == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('No hay usuario autenticado')),
+                );
+                return;
+              }
+
+              final docRef = FirebaseFirestore.instance.collection('usuarios').doc(uid);
+
+              await docRef.set({
+                'nombre': controller.nombre.isNotEmpty ? controller.nombre : 'Usuario Prueba',
+                'edad': controller.edad.isNotEmpty ? controller.edad : '75',
+                'genero': controller.genero.isNotEmpty ? controller.genero : 'Masculino',
+
+                // ✅ FRANJAS EXACTAS
+                'desayuno': controller.desayuno.isNotEmpty ? controller.desayuno : '7:00–9:00',
+                'almuerzo': controller.almuerzo.isNotEmpty ? controller.almuerzo : '13:00–15:00',
+                'cena': controller.cena.isNotEmpty ? controller.cena : '20:00–22:00',
+                'dormir': controller.dormir.isNotEmpty ? controller.dormir : '00:30–07:00',
+
+                'siesta': controller.siesta,
+                'actividad': controller.actividad.isNotEmpty ? controller.actividad : 'Caminar',
+                'energia': controller.energia.isNotEmpty ? controller.energia : 'Normal',
+
+                'onboardingCompletado': true,
+              }, SetOptions(merge: true));
 
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Datos guardados con éxito')),
-                );
-
                 Navigator.pushReplacement(
                   context,
-                  MaterialPageRoute(builder: (_) => const HomeScreen()),
+                 MaterialPageRoute(builder: (_) => const PanelUsuario()),
+
                 );
               }
             },
-            child: const Text("Finalizar"),
+            child: const Text("Siguiente"),
           ),
         ],
       ),

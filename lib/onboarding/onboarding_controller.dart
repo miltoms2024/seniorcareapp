@@ -6,10 +6,15 @@ class OnboardingController extends ChangeNotifier {
   String nombre = "";
   String edad = "";
   String genero = "";
+
   String desayuno = "";
   String almuerzo = "";
   String cena = "";
-  List<String> actividades = [];
+  bool siesta = false;
+
+  String dormir = "22:15–06:00";   // ✅ YA EXISTE
+
+  String actividad = "";
   String energia = "";
 
   void actualizarIdentidad({
@@ -23,14 +28,17 @@ class OnboardingController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ✅ CORREGIDO: ahora acepta y actualiza "dormir"
   void actualizarRutina({
     required String desayuno,
     required String almuerzo,
     required String cena,
+    required String dormir,
   }) {
     this.desayuno = desayuno;
     this.almuerzo = almuerzo;
     this.cena = cena;
+    this.dormir = dormir;   // ✅ AHORA SÍ SE ACTUALIZA
     notifyListeners();
   }
 
@@ -38,7 +46,9 @@ class OnboardingController extends ChangeNotifier {
     required List<String> actividades,
     required String energia,
   }) {
-    this.actividades = actividades;
+    if (actividades.isNotEmpty) {
+      actividad = actividades.first;
+    }
     this.energia = energia;
     notifyListeners();
   }
@@ -55,10 +65,15 @@ class OnboardingController extends ChangeNotifier {
       'nombre': nombre,
       'edad': edad,
       'genero': genero,
+
       'desayuno': desayuno,
       'almuerzo': almuerzo,
       'cena': cena,
-      'actividades': actividades,
+      'siesta': siesta,
+
+      'dormir': dormir,   // ✅ SE GUARDA CORRECTAMENTE
+
+      'actividad': actividad,
       'energia': energia,
     }, SetOptions(merge: true));
   }
