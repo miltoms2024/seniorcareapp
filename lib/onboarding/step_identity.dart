@@ -92,7 +92,11 @@ class _StepIdentityState extends State<StepIdentity> {
                 const Text("¿Haces siesta?", style: TextStyle(fontSize: 20)),
                 Switch(
                   value: _siesta,
-                  onChanged: (v) => setState(() => _siesta = v),
+                  onChanged: (v) {
+                    setState(() => _siesta = v);
+                    Provider.of<OnboardingController>(context, listen: false)
+                        .actualizarSiesta(v);
+                  },
                 ),
               ],
             ),

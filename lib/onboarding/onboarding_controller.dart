@@ -10,12 +10,18 @@ class OnboardingController extends ChangeNotifier {
   String desayuno = "";
   String almuerzo = "";
   String cena = "";
-  bool siesta = false;
+  bool siesta = false;   // ← YA DECLARADA
 
-  String dormir = "22:15–06:00";   // ✅ YA EXISTE
+  String dormir = "22:15–06:00";
 
   String actividad = "";
   String energia = "";
+
+  // ← FUNCIÓN QUE FALTABA
+  void actualizarSiesta(bool valor) {
+    siesta = valor;
+    notifyListeners();
+  }
 
   void actualizarIdentidad({
     required String nombre,
@@ -28,7 +34,6 @@ class OnboardingController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ✅ CORREGIDO: ahora acepta y actualiza "dormir"
   void actualizarRutina({
     required String desayuno,
     required String almuerzo,
@@ -38,7 +43,7 @@ class OnboardingController extends ChangeNotifier {
     this.desayuno = desayuno;
     this.almuerzo = almuerzo;
     this.cena = cena;
-    this.dormir = dormir;   // ✅ AHORA SÍ SE ACTUALIZA
+    this.dormir = dormir;
     notifyListeners();
   }
 
@@ -71,7 +76,7 @@ class OnboardingController extends ChangeNotifier {
       'cena': cena,
       'siesta': siesta,
 
-      'dormir': dormir,   // ✅ SE GUARDA CORRECTAMENTE
+      'dormir': dormir,
 
       'actividad': actividad,
       'energia': energia,

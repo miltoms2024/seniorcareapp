@@ -10,21 +10,33 @@ class AgregarMedicamentoScreen extends StatefulWidget {
 
 class _AgregarMedicamentoScreenState extends State<AgregarMedicamentoScreen> {
   final nombreController = TextEditingController();
-  final horaController = TextEditingController();
-  final frecuenciaController = TextEditingController();
+  final dosisController = TextEditingController();
+  final frecuenciaHorasController = TextEditingController();
+
+  TimeOfDay? horaSeleccionada;
+
+  final vias = ['Oral', 'Inyectable', 'Tópica'];
+  String viaSeleccionada = 'Oral';
 
   void guardarMedicamento() async {
     final nombre = nombreController.text.trim();
-    final hora = horaController.text.trim();
-    final frecuencia = frecuenciaController.text.trim();
+    final dosis = dosisController.text.trim();
+    final frecuenciaStr = frecuenciaHorasController.text.trim();
 
-    if (nombre.isEmpty || hora.isEmpty || frecuencia.isEmpty) return;
+    if (nombre.isEmpty || dosis.isEmpty || frecuenciaStr.isEmpty || horaSeleccionada == null) return;
+
+    final frecuenciaHoras = int.tryParse(frecuenciaStr);
+    if (frecuenciaHoras == null) return;
+
+    final horaString =
+        "${horaSeleccionada!.hour.toString().padLeft(2, '0')}:${horaSeleccionada!.minute.toString().padLeft(2, '0')}";
 
     await FirebaseFirestore.instance.collection('medicaciones_programadas').add({
       'nombre_medicina': nombre,
-      'hora_referencia': hora,
-      'dosis': frecuencia,
-      'via': 'Oral',
+      'dosis': dosis,
+      'via': viaSeleccionada,
+      'hora_referencia': horaString,
+      'frecuencia_horas': frecuenciaHoras,
       'activo': true,
     });
 
@@ -42,16 +54,55 @@ class _AgregarMedicamentoScreenState extends State<AgregarMedicamentoScreen> {
           children: [
             TextField(
               controller: nombreController,
-              decoration: const InputDecoration(labelText: 'Nombre'),
+              decoration: const InputDecoration(labelText: 'Nombre del medicamento'),
             ),
             TextField(
-              controller: horaController,
-              decoration: const InputDecoration(labelText: 'Hora'),
+              controller: dosisController,
+              decoration: const InputDecoration(labelText: 'Dosis (ej: 1 cápsula)'),
             ),
             TextField(
-              controller: frecuenciaController,
-              decoration: const InputDecoration(labelText: 'Dosis / Frecuencia'),
+              controller: frecuenciaHorasController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Frecuencia en horas (ej: 24)'),
             ),
+
+            const SizedBox(height: 12),
+
+            ElevatedButton(
+              onPressed: () async {
+                final seleccion = await showTimePicker(
+                  context: context,
+                  initialTime: TimeOfDay.now(),
+                );
+
+                if (seleccion != null) {
+                  setState(() {
+                    horaSeleccionada = seleccion;
+                  });
+                }
+              },
+              child: Text(
+                horaSeleccionada == null
+                    ? "Seleccionar hora"
+                    : "Hora: ${horaSeleccionada!.hour.toString().padLeft(2, '0')}:${horaSeleccionada!.minute.toString().padLeft(2, '0')}",
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            DropdownButtonFormField<String>(
+              value: viaSeleccionada,
+              decoration: const InputDecoration(labelText: 'Vía'),
+              items: vias
+                  .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => viaSeleccionada = value);
+                }
+              },
+            ),
+
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: guardarMedicamento,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'editar_perfil_usuario.dart';
 
 class PerfilUsuario extends StatelessWidget {
   const PerfilUsuario({super.key});
@@ -21,22 +22,43 @@ class PerfilUsuario extends StatelessWidget {
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
 
-    // ✅ Ajuste responsive
     double maxWidth;
     if (width < 500) {
-      maxWidth = width; // móvil
+      maxWidth = width;
     } else if (width < 900) {
-      maxWidth = 600; // portátil
+      maxWidth = 600;
     } else {
-      maxWidth = 900; // escritorio
+      maxWidth = 900;
     }
 
     return Scaffold(
       backgroundColor: const Color(0xFFFDF6EC),
+
+      // ⭐ AQUI AÑADIMOS EL BOTÓN EDITAR E INICIO
       appBar: AppBar(
         title: const Text("Perfil del Usuario"),
         backgroundColor: const Color(0xFFB8E0D2),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.home),
+            onPressed: () {
+              Navigator.pushReplacementNamed(context, '/panel');
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const EditarPerfilUsuario(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
+
       body: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: maxWidth),
@@ -79,8 +101,8 @@ class PerfilUsuario extends StatelessWidget {
                   _seccion(
                     "Preferencias",
                     [
-                      _item("Energía", data["energía"]),
-                      _item("Actividad", (data["actividades"]?[0] ?? "")),
+                      _item("Energía", data["energia"]),
+                      _item("Actividad", data["actividad"]),
                     ],
                   ),
                 ],
@@ -92,7 +114,6 @@ class PerfilUsuario extends StatelessWidget {
     );
   }
 
-  // ✅ Tarjeta de sección
   Widget _seccion(String titulo, List<Widget> contenido) {
     return Card(
       elevation: 4,
@@ -120,7 +141,6 @@ class PerfilUsuario extends StatelessWidget {
     );
   }
 
-  // ✅ Fila de dato
   Widget _item(String titulo, dynamic valor) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
