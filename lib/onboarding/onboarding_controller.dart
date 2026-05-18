@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class OnboardingController extends ChangeNotifier {
   String nombre = "";
@@ -10,14 +11,13 @@ class OnboardingController extends ChangeNotifier {
   String desayuno = "";
   String almuerzo = "";
   String cena = "";
-  bool siesta = false;   // ← YA DECLARADA
+  bool siesta = false;
 
   String dormir = "22:15–06:00";
 
   String actividad = "";
   String energia = "";
 
-  // ← FUNCIÓN QUE FALTABA
   void actualizarSiesta(bool valor) {
     siesta = valor;
     notifyListeners();
@@ -58,28 +58,39 @@ class OnboardingController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Guarda los datos en Firestore y marca el onboarding como completado
+  /// en SharedPreferences para que `main.dart` muestre el panel en adelante.
   Future<void> guardarEnFirestore() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
-      throw Exception("No se pudo obtener el UID del usuario.");
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        return Future.error("No se pudo obtener el UID del usuario.");
+      }
+
+      final uid = user.uid;
+      final docRef = FirebaseFirestore.instance.collection('usuarios').doc(uid);
+
+      await docRef.set({
+        'nombre': nombre,
+        'edad': edad,
+        'genero': genero,
+        'desayuno': desayuno,
+        'almuerzo': almuerzo,
+        'cena': cena,
+        'siesta': siesta,
+        'dormir': dormir,
+        'actividad': actividad,
+        'energia': energia,
+      }, SetOptions(merge: true));
+
+      // Marcar onboarding completado localmente para que main.dart muestre PanelUsuario
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('registro_completado', true);
+      await prefs.setString('userId', uid);
+
+    } catch (e) {
+      // Re-lanzar el error para que la UI lo maneje si es necesario
+      return Future.error("Error al guardar en Firestore: $e");
     }
-
-    final docRef = FirebaseFirestore.instance.collection('usuarios').doc(uid);
-
-    await docRef.set({
-      'nombre': nombre,
-      'edad': edad,
-      'genero': genero,
-
-      'desayuno': desayuno,
-      'almuerzo': almuerzo,
-      'cena': cena,
-      'siesta': siesta,
-
-      'dormir': dormir,
-
-      'actividad': actividad,
-      'energia': energia,
-    }, SetOptions(merge: true));
   }
 }

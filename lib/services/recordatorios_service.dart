@@ -2,35 +2,38 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class RecordatoriosService {
   static final _db = FirebaseFirestore.instance;
-  static final _coleccion = _db.collection('recordatorios');
 
-  /// Crear un nuevo recordatorio
+  static final _coleccion = _db.collection('medicamentos');
+
   static Future<String> crearRecordatorio({
-    required String tipo,
+    required String uid,
     required String titulo,
-    required String descripcion,
     required String hora,
     required List<String> dias,
+    required String tipo,
     required bool activo,
-    String? origen,
-    String? idOrigen,
+    int? frecuenciaHoras,
+    int? duracionDias,
+    String? via,
+    String? dosis,
   }) async {
     final doc = await _coleccion.add({
-      'tipo': tipo,
+      'uid': uid,
       'titulo': titulo,
-      'descripcion': descripcion,
       'hora': hora,
       'dias': dias,
+      'tipo': tipo,
       'activo': activo,
-      'origen': origen,
-      'id_origen': idOrigen,
+      'frecuencia_horas': frecuenciaHoras,
+      'duracion_dias': duracionDias,
+      'via': via,
+      'dosis': dosis,
       'creado_en': FieldValue.serverTimestamp(),
     });
 
     return doc.id;
   }
 
-  /// Actualizar un recordatorio existente
   static Future<void> actualizarRecordatorio(
     String id,
     Map<String, dynamic> data,
@@ -38,23 +41,12 @@ class RecordatoriosService {
     await _coleccion.doc(id).update(data);
   }
 
-  /// Borrar un recordatorio
   static Future<void> borrarRecordatorio(String id) async {
     await _coleccion.doc(id).delete();
   }
 
-  /// Buscar un recordatorio por origen (medicación, actividad, etc.)
-  static Future<QueryDocumentSnapshot?> obtenerPorOrigen(
-    String origen,
-    String idOrigen,
-  ) async {
-    final query = await _coleccion
-        .where('origen', isEqualTo: origen)
-        .where('id_origen', isEqualTo: idOrigen)
-        .limit(1)
-        .get();
-
-    if (query.docs.isEmpty) return null;
-    return query.docs.first;
+  static Future<DocumentSnapshot?> obtenerPorId(String id) async {
+    final doc = await _coleccion.doc(id).get();
+    return doc.exists ? doc : null;
   }
 }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'onboarding_controller.dart';
-//import 'step_preferences.dart';
 import 'step_identity.dart';
 
 class OnboardingScreen extends StatelessWidget {
@@ -16,19 +15,22 @@ class OnboardingScreen extends StatelessWidget {
           final controller = Provider.of<OnboardingController>(context, listen: false);
 
           return Scaffold(
-            //body: StepPreferences(
             body: StepIdentity(
-
-             onNext: () async {
+              onNext: () async {
                 try {
+                  // Guarda los datos del onboarding
                   await controller.guardarEnFirestore();
+
                   if (context.mounted) {
-                    Navigator.pushReplacementNamed(context, '/home');
+                    // Navega correctamente al panel principal
+                    Navigator.pushReplacementNamed(context, '/panel');
                   }
                 } catch (e) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text("Error al guardar: ${e.toString()}")),
+                      SnackBar(
+                        content: Text("Error al guardar: ${e.toString()}"),
+                      ),
                     );
                   }
                 }

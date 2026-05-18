@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:geocoding/geocoding.dart';
 import 'gestionar_contactos.dart';
 
 class EditarPerfilUsuario extends StatefulWidget {
@@ -27,36 +28,102 @@ class _EditarPerfilUsuarioState extends State<EditarPerfilUsuario> {
     cargarDatos();
   }
 
+  @override
+  void dispose() {
+    nombreCtrl.dispose();
+    direccionCtrl.dispose();
+    telefonoCtrl.dispose();
+    edadCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> cargarDatos() async {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-    final doc = await FirebaseFirestore.instance.collection('usuarios').doc(uid).get();
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, '/inicio');
+        return;
+      }
 
-    if (doc.exists) {
-      final data = doc.data()!;
-      nombreCtrl.text = data["nombre"] ?? "";
-      direccionCtrl.text = data["direccion"] ?? "";
-      telefonoCtrl.text = data["telefono_hijo"] ?? "";
-      edadCtrl.text = data["edad"]?.toString() ?? "";
-      genero = data["genero"] ?? "Masculino";
-      siesta = data["siesta"] ?? false;
+      final uid = user.uid;
+      final doc = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(uid)
+          .get();
+
+      if (doc.exists) {
+        final data = doc.data()!;
+        nombreCtrl.text = data["nombre"] ?? "";
+        direccionCtrl.text = data["direccion"] ?? "";
+        telefonoCtrl.text = data["telefono_hijo"] ?? "";
+        edadCtrl.text = data["edad"]?.toString() ?? "";
+        genero = data["genero"] ?? "Masculino";
+        siesta = data["siesta"] ?? false;
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al cargar datos: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => cargando = false);
     }
-
-    setState(() => cargando = false);
   }
 
   Future<void> guardar() async {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sesión no válida. Por favor inicia sesión.')),
+        );
+        Navigator.pushReplacementNamed(context, '/inicio');
+        return;
+      }
 
-    await FirebaseFirestore.instance.collection('usuarios').doc(uid).set({
-      "nombre": nombreCtrl.text,
-      "direccion": direccionCtrl.text,
-      "telefono_hijo": telefonoCtrl.text,
-      "edad": int.tryParse(edadCtrl.text) ?? 0,
-      "genero": genero,
-      "siesta": siesta,
-    }, SetOptions(merge: true));
+      final uid = user.uid;
 
-    Navigator.pop(context);
+      // --- GEOCODING: convertir dirección a coordenadas ---
+      double? lat;
+      double? lng;
+
+      if (direccionCtrl.text.isNotEmpty) {
+        try {
+          final locations = await locationFromAddress(direccionCtrl.text);
+          if (locations.isNotEmpty) {
+            lat = locations.first.latitude;
+            lng = locations.first.longitude;
+          }
+        } catch (e) {
+          lat = null;
+          lng = null;
+        }
+      }
+
+      // --- GUARDAR EN FIRESTORE ---
+      await FirebaseFirestore.instance.collection('usuarios').doc(uid).set({
+        "nombre": nombreCtrl.text,
+        "direccion": direccionCtrl.text,
+        "telefono_hijo": telefonoCtrl.text,
+        "edad": int.tryParse(edadCtrl.text) ?? 0,
+        "genero": genero,
+        "siesta": siesta,
+        "latitud": lat,
+        "longitud": lng,
+      }, SetOptions(merge: true));
+
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al guardar: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -80,7 +147,6 @@ class _EditarPerfilUsuarioState extends State<EditarPerfilUsuario> {
                     ),
                   ),
                   const SizedBox(height: 20),
-
                   TextField(
                     controller: edadCtrl,
                     decoration: const InputDecoration(
@@ -90,7 +156,6 @@ class _EditarPerfilUsuarioState extends State<EditarPerfilUsuario> {
                     keyboardType: TextInputType.number,
                   ),
                   const SizedBox(height: 20),
-
                   DropdownButtonFormField<String>(
                     value: genero,
                     decoration: const InputDecoration(
@@ -102,10 +167,9 @@ class _EditarPerfilUsuarioState extends State<EditarPerfilUsuario> {
                       DropdownMenuItem(value: "Femenino", child: Text("Femenino")),
                       DropdownMenuItem(value: "Otro", child: Text("Otro")),
                     ],
-                    onChanged: (v) => setState(() => genero = v!),
+                    onChanged: (v) => setState(() => genero = v ?? genero),
                   ),
                   const SizedBox(height: 20),
-
                   TextField(
                     controller: direccionCtrl,
                     decoration: const InputDecoration(
@@ -114,7 +178,6 @@ class _EditarPerfilUsuarioState extends State<EditarPerfilUsuario> {
                     ),
                   ),
                   const SizedBox(height: 20),
-
                   TextField(
                     controller: telefonoCtrl,
                     decoration: const InputDecoration(
@@ -124,7 +187,6 @@ class _EditarPerfilUsuarioState extends State<EditarPerfilUsuario> {
                     keyboardType: TextInputType.phone,
                   ),
                   const SizedBox(height: 20),
-
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -135,9 +197,7 @@ class _EditarPerfilUsuarioState extends State<EditarPerfilUsuario> {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 20),
-
                   ElevatedButton.icon(
                     onPressed: () {
                       Navigator.push(
@@ -153,10 +213,7 @@ class _EditarPerfilUsuarioState extends State<EditarPerfilUsuario> {
                       padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
                   ),
-
-
                   const SizedBox(height: 40),
-
                   ElevatedButton.icon(
                     onPressed: guardar,
                     icon: const Icon(Icons.save),

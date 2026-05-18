@@ -1,16 +1,3 @@
-// *** VERSION CON ALERTAS — GENERADA POR COPILOT ***
-// -------------------------------------------------------------
-// PANEL DE USUARIO (VERSIÓN MODIFICADA PARA ALERTAS DE MEDICACIÓN)
-// -------------------------------------------------------------
-// Cambios principales:
-//  ✔ StatelessWidget -> StatefulWidget
-//  ✔ Timer que revisa medicación cada minuto
-//  ✔ revisarMedicacionCronica()
-//  ✔ lanzarAlerta()
-//  ✔ initState() y dispose()
-//  ✔ Se mantienen tus funciones originales y tu UI intacta
-// -------------------------------------------------------------
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -20,6 +7,9 @@ import 'time_widget.dart';
 import '../controllers/app_brain.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:seniorcareapp/services/motor_recordatorios.dart';
+import 'package:seniorcareapp/models/recordatorio.dart';
 
 class PanelUsuario extends StatefulWidget {
   const PanelUsuario({super.key});
@@ -31,64 +21,39 @@ class PanelUsuario extends StatefulWidget {
 class _PanelUsuarioState extends State<PanelUsuario> {
   Timer? timer;
 
-  // -----------------------------
-  // TUS FUNCIONES ORIGINALES
-  // -----------------------------
+  List<Recordatorio> recordatoriosHoy = [];
+  Recordatorio? recordatorioActual;
+  final motor = MotorRecordatorios();
+
   Future<Map<String, dynamic>?> cargarDatosUsuario() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return null;
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('userId');
+    if (userId == null) return null;
 
     final doc = await FirebaseFirestore.instance
         .collection('usuarios')
-        .doc(uid)
+        .doc(userId)
         .get();
 
     return doc.exists ? doc.data() : null;
   }
 
-  Future<Map<String, dynamic>?> obtenerProximoMedicamento() async {
-    final query = await FirebaseFirestore.instance
-        .collection('medicaciones_programadas')
-        .where('activo', isEqualTo: true)
-        .get();
+  void cargarRecordatorios() async {
+    final lista = await motor.cargarRecordatoriosDelDia();
+    final proximo = motor.obtenerProximoRecordatorio(lista);
 
-    if (query.docs.isEmpty) return null;
-
-    final medicamentos = query.docs.map((d) => d.data()).toList();
-
-    medicamentos.sort((a, b) {
-      return a['hora_referencia']
-          .toString()
-          .compareTo(b['hora_referencia'].toString());
+    setState(() {
+      recordatoriosHoy = lista;
+      recordatorioActual = proximo;
     });
 
-    return medicamentos.first;
+   
   }
 
-  Future<void> registrarMedicamentoTomado(Map<String, dynamic> med) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-
-    await FirebaseFirestore.instance.collection('historial_medicacion').add({
-      'uid': uid,
-      'nombre_medicina': med['nombre_medicina'],
-      'dosis': med['dosis'],
-      'via': med['via'],
-      'momento': med['hora_referencia'],
-      'fecha_tomado': DateTime.now().toIso8601String(),
-    });
-  }
-
-  // -----------------------------
-  // NUEVO: ALERTAS AUTOMÁTICAS
-  // -----------------------------
   @override
   void initState() {
     super.initState();
-
-    timer = Timer.periodic(const Duration(minutes: 1), (timer) {
-      revisarMedicacionCronica();
-    });
+    cargarRecordatorios();
   }
 
   @override
@@ -96,55 +61,6 @@ class _PanelUsuarioState extends State<PanelUsuario> {
     timer?.cancel();
     super.dispose();
   }
-
-  Future<void> revisarMedicacionCronica() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-
-    final ahora = TimeOfDay.now();
-    final horaActual =
-        "${ahora.hour.toString().padLeft(2, '0')}:${ahora.minute.toString().padLeft(2, '0')}";
-
-    final query = await FirebaseFirestore.instance
-        .collection('medicaciones_programadas')
-        .where('activo', isEqualTo: true)
-        .get();
-
-    if (query.docs.isEmpty) return;
-
-    for (var doc in query.docs) {
-      final data = doc.data();
-      if (data['hora_referencia']?.toString() == horaActual) {
-        lanzarAlerta(data);
-      }
-    }
-  }
-
-  void lanzarAlerta(Map<String, dynamic> med) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Hora de tomar tu medicación"),
-        content: Text(
-          "${med['nombre_medicina']} - ${med['dosis']} (${med['via']})\nA las ${med['hora_referencia']}",
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Tomado"),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Recordar más tarde"),
-          ),
-        ],
-      ),
-    );
-  }
-// *** VERSION CON ALERTAS — GENERADA POR COPILOT ***
-// -------------------------------------------------------------
-// MÉTODO BUILD ORIGINAL — NO SE HA MODIFICADO NADA EN LA UI
-// -------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -159,7 +75,7 @@ class _PanelUsuarioState extends State<PanelUsuario> {
               backgroundColor: const Color.fromARGB(255, 218, 237, 230),
               actions: [
                 PopupMenuButton<String>(
-                  onSelected: (value) {
+                  onSelected: (value) async {
                     if (value == 'perfil') {
                       Navigator.pushNamed(context, '/perfil');
                     } else if (value == 'preferencias') {
@@ -169,28 +85,30 @@ class _PanelUsuarioState extends State<PanelUsuario> {
                     } else if (value == 'lista_medicamentos') {
                       Navigator.pushNamed(context, '/lista_medicamentos');
                     } else if (value == 'logout') {
-                      FirebaseAuth.instance.signOut();
-                      Navigator.pushReplacementNamed(context, '/login');
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.remove('registro_completado');
+                      await prefs.remove('userId');
+
+                      Navigator.pushNamedAndRemoveUntil(
+                        context,
+                        '/onboarding',
+                        (_) => false,
+                      );
                     }
                   },
                   itemBuilder: (context) => const [
-                    PopupMenuItem(
-                        value: 'inicio', child: Text('Inicio')),
-                    PopupMenuItem(
-                        value: 'perfil', child: Text('Perfil')),
-                    PopupMenuItem(
-                        value: 'preferencias',
-                        child: Text('Preferencias')),
-                    PopupMenuItem(
-                        value: 'lista_medicamentos',
-                        child: Text('Lista de medicamentos')),
-                    PopupMenuItem(
-                        value: 'logout', child: Text('Cerrar sesión')),
+                    PopupMenuItem(value: 'inicio', child: Text('Inicio')),
+                    PopupMenuItem(value: 'perfil', child: Text('Perfil')),
+                    PopupMenuItem(value: 'preferencias', child: Text('Preferencias')),
+                    PopupMenuItem(value: 'lista_medicamentos', child: Text('Lista de medicamentos')),
+                    PopupMenuItem(value: 'logout', child: Text('Cerrar sesión')),
                   ],
                 ),
               ],
             ),
-            body: Padding(
+
+            // 🔥🔥🔥 SCROLL GENERAL PARA EVITAR OVERFLOW 🔥🔥🔥
+            body: SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -199,11 +117,11 @@ class _PanelUsuarioState extends State<PanelUsuario> {
                   const SizedBox(height: 8),
                   const TimeWidget(),
                   const SizedBox(height: 16),
+
                   FutureBuilder<Map<String, dynamic>?>(
                     future: cargarDatosUsuario(),
                     builder: (context, snapshot) {
-                      if (snapshot.connectionState ==
-                          ConnectionState.waiting) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Padding(
                           padding: EdgeInsets.symmetric(vertical: 16),
                           child: CircularProgressIndicator(),
@@ -218,8 +136,7 @@ class _PanelUsuarioState extends State<PanelUsuario> {
                       final data = snapshot.data!;
                       final nombre = data['nombre'] ?? 'Usuario';
                       return Padding(
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 16),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                         child: Text(
                           'Bienvenido, $nombre',
                           style: const TextStyle(
@@ -230,261 +147,261 @@ class _PanelUsuarioState extends State<PanelUsuario> {
                       );
                     },
                   ),
+
                   const SizedBox(height: 16),
+
                   const Text(
                     '¡Es hora de tus pastillas!',
-                    style: TextStyle(
-                        fontSize: 22, fontWeight: FontWeight.bold),
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
-                  FutureBuilder(
-                    future: obtenerProximoMedicamento(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState ==
-                          ConnectionState.waiting) {
-                        return const Text("Cargando medicamentos...");
-                      }
-                      if (!snapshot.hasData || snapshot.data == null) {
-                        return const Text(
-                          "No hay medicamentos registrados",
-                          style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold),
-                        );
-                      }
-                      final med = snapshot.data!;
-                      return Column(
+
+                  if (recordatorioActual != null)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            "Próximo medicamento:",
-                            style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold),
+                          Text(
+                            recordatorioActual!.titulo,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                          const SizedBox(height: 8),
-                          Text("• ${med['nombre_medicina']}"),
-                          Text("• Dosis: ${med['dosis']}"),
-                          Text("• Vía: ${med['via']}"),
-                          Text("• Momento: ${med['hora_referencia']}"),
-                          const SizedBox(height: 12),
-                          ElevatedButton(
-                            onPressed: () async {
-                              await registrarMedicamentoTomado(med);
+                          const SizedBox(height: 6),
+                          Text("Dosis: ${recordatorioActual!.dosis}"),
+                          Text("Hora: ${recordatorioActual!.hora}"),
+                        ],
+                      ),
+                    )
+                  else
+                    const Text("No hay medicación pendiente."),
+
+                  const SizedBox(height: 24),
+
+                  // 🔥🔥🔥 BOTONES GRANDES Y CENTRADOS 🔥🔥🔥
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: MediaQuery.of(context).size.width * 0.85,
+                        height: 65,
+                        child: ElevatedButton.icon(
+                          onPressed: () async {
+                            final uid = FirebaseAuth.instance.currentUser?.uid;
+                            if (uid == null) return;
+
+                            final doc = await FirebaseFirestore.instance
+                                .collection('usuarios')
+                                .doc(uid)
+                                .get();
+
+                            final lat = doc.data()?['latitud'];
+                            final lng = doc.data()?['longitud'];
+                            final direccion = doc.data()?['direccion'] ?? "Dirección no disponible";
+
+                            if (lat == null || lng == null) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text(
-                                      "Medicamento registrado como tomado"),
+                                  content: Text('No hay coordenadas guardadas'),
                                 ),
                               );
-                            },
-                            child: const Text("Tomado"),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                      'Próxima tarea: Caminar 30 min. Hoy a las 10:00 AM'),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: () async {
-                          final uid =
-                              FirebaseAuth.instance.currentUser?.uid;
-                          if (uid == null) return;
+                              return;
+                            }
 
-                          final doc = await FirebaseFirestore.instance
-                              .collection('usuarios')
-                              .doc(uid)
-                              .get();
-
-                          final direccion = doc.data()?['direccion'];
-
-                          if (direccion == null || direccion.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                    'No hay dirección guardada'),
-                              ),
+                            mostrarModalConfirmacion(
+                              context,
+                              lat,
+                              lng,
+                              direccion,
                             );
-                            return;
-                          }
-
-                          final url = Uri.encodeFull(
-                              "https://www.google.com/maps/dir/?api=1&destination=$direccion");
-
-                          if (await canLaunchUrl(Uri.parse(url))) {
-                            await launchUrl(Uri.parse(url),
-                                mode: LaunchMode.externalApplication);
-                          }
-                        },
-                        icon: const Icon(Icons.home),
-                        label: const Text('VOLVER A CASA'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              const Color.fromARGB(255, 207, 55, 4),
+                          },
+                          icon: const Icon(Icons.home, size: 30),
+                          label: const Text(
+                            'VOLVER A CASA',
+                            style: TextStyle(fontSize: 22),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Color.fromARGB(255, 207, 55, 4),
+                          ),
                         ),
                       ),
-                      ElevatedButton.icon(
-                        onPressed: () async {
-                          final uid =
-                              FirebaseAuth.instance.currentUser?.uid;
-                          if (uid == null) return;
 
-                          final doc = await FirebaseFirestore.instance
-                              .collection('usuarios')
-                              .doc(uid)
-                              .get();
+                      const SizedBox(height: 20),
 
-                          if (!doc.exists ||
-                              !doc.data()!.containsKey("contactos")) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                    "No hay contactos guardados"),
-                              ),
-                            );
-                            return;
-                          }
+                      SizedBox(
+                        width: MediaQuery.of(context).size.width * 0.85,
+                        height: 65,
+                        child: ElevatedButton.icon(
+                          onPressed: () async {
+                            final uid = FirebaseAuth.instance.currentUser?.uid;
+                            if (uid == null) return;
 
-                          final contactos =
-                              List<Map<String, dynamic>>.from(
-                                  doc["contactos"]);
+                            final doc = await FirebaseFirestore.instance
+                                .collection('usuarios')
+                                .doc(uid)
+                                .get();
 
-                          if (contactos.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                    "No hay contactos disponibles"),
-                              ),
-                            );
-                            return;
-                          }
-
-                          final principal = contactos.firstWhere(
-                            (c) => c["principal"] == true,
-                            orElse: () => {},
-                          );
-
-                          if (contactos.length == 1 &&
-                              principal.isNotEmpty) {
-                            final telefono = principal["telefono"];
-                            final nombre = principal["nombre"];
-                            final parentesco =
-                                principal["parentesco"];
-
-                            showDialog(
-                              context: context,
-                              builder: (_) => AlertDialog(
-                                title: Text(
-                                    "Llamar a $nombre ($parentesco)"),
-                                content: const Text(
-                                    "¿Quieres realizar la llamada?"),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context),
-                                    child: const Text("Cancelar"),
-                                  ),
-                                  TextButton(
-                                    onPressed: () async {
-                                      Navigator.pop(context);
-                                      final url =
-                                          Uri.parse("tel:$telefono");
-                                      if (await canLaunchUrl(url)) {
-                                        await launchUrl(url);
-                                      }
-                                    },
-                                    child: const Text("Llamar"),
-                                  ),
-                                ],
-                              ),
-                            );
-                            return;
-                          }
-
-                          showModalBottomSheet(
-                            context: context,
-                            builder: (_) {
-                              return ListView(
-                                padding: const EdgeInsets.all(16),
-                                children: [
-                                  const Text(
-                                    "¿A quién quieres llamar?",
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  ...contactos.map((c) {
-                                    return ListTile(
-                                      leading:
-                                          const Icon(Icons.phone),
-                                      title: Text(
-                                          "${c["nombre"]} – ${c["parentesco"]}"),
-                                      subtitle:
-                                          Text(c["telefono"]),
-                                      onTap: () async {
-                                        Navigator.pop(context);
-                                        showDialog(
-                                          context: context,
-                                          builder: (_) => AlertDialog(
-                                            title: Text(
-                                                "Llamar a ${c["nombre"]} (${c["parentesco"]})"),
-                                            content: Text(
-                                                "¿Quieres realizar la llamada al ${c["telefono"]}?"),
-                                            actions: [
-                                              TextButton(
-                                                onPressed: () =>
-                                                    Navigator.pop(
-                                                        context),
-                                                child: const Text(
-                                                    "Cancelar"),
-                                              ),
-                                              TextButton(
-                                                onPressed: () async {
-                                                  Navigator.pop(
-                                                      context);
-                                                  final url = Uri.parse(
-                                                      "tel:${c["telefono"]}");
-                                                  if (await canLaunchUrl(
-                                                      url)) {
-                                                    await launchUrl(
-                                                        url);
-                                                  }
-                                                },
-                                                child: const Text(
-                                                    "Llamar"),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      },
-                                    );
-                                  }).toList(),
-                                  const SizedBox(height: 20),
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context),
-                                    child: const Text(
-                                      "Cancelar",
-                                      style: TextStyle(fontSize: 18),
-                                    ),
-                                  ),
-                                ],
+                            if (!doc.exists || !doc.data()!.containsKey("contactos")) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text("No hay contactos guardados"),
+                                ),
                               );
-                            },
-                          );
-                        },
-                        icon: const Icon(Icons.phone),
-                        label: const Text('LLAMAR A CONTACTO'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
+                              return;
+                            }
+
+                            final contactos = List<Map<String, dynamic>>.from(doc["contactos"]);
+
+                            if (contactos.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text("No hay contactos disponibles"),
+                                ),
+                              );
+                              return;
+                            }
+
+                            final principal = contactos.firstWhere(
+                              (c) => c["principal"] == true,
+                              orElse: () => {},
+                            );
+
+                            if (contactos.length == 1 && principal.isNotEmpty) {
+                              final telefono = principal["telefono"];
+                              final nombre = principal["nombre"];
+                              final parentesco = principal["parentesco"];
+
+                              showDialog(
+                                context: context,
+                                builder: (_) => AlertDialog(
+                                  title: Text("Llamar a $nombre ($parentesco)"),
+                                  content: const Text("¿Quieres realizar la llamada?"),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: const Text("Cancelar"),
+                                    ),
+                                    TextButton(
+                                      onPressed: () async {
+                                        Navigator.pop(context);
+                                        final url = Uri.parse("tel:$telefono");
+                                        if (await canLaunchUrl(url)) {
+                                          await launchUrl(url);
+                                        }
+                                      },
+                                      child: const Text("Llamar"),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              return;
+                            }
+
+                            showModalBottomSheet(
+                              context: context,
+                              builder: (_) {
+                                return ListView(
+                                  padding: const EdgeInsets.all(16),
+                                  children: [
+                                    const Text(
+                                      "¿A quién quieres llamar?",
+                                      style: TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 20),
+                                    ...contactos.map((c) {
+                                      return Card(
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(16),
+                                        ),
+                                        elevation: 4,
+                                        margin: const EdgeInsets.only(bottom: 16),
+                                        child: InkWell(
+                                          borderRadius: BorderRadius.circular(16),
+                                          onTap: () async {
+                                            Navigator.pop(context);
+                                            showDialog(
+                                              context: context,
+                                              builder: (_) => AlertDialog(
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(20),
+                                                ),
+                                                title: Text("Llamar a ${c["nombre"]} (${c["parentesco"]})"),
+                                                content: Text("¿Quieres llamar al ${c["telefono"]}?"),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed: () => Navigator.pop(context),
+                                                    child: const Text("Cancelar"),
+                                                  ),
+                                                  TextButton(
+                                                    onPressed: () async {
+                                                      Navigator.pop(context);
+                                                      final url = Uri.parse("tel:${c["telefono"]}");
+                                                      if (await canLaunchUrl(url)) {
+                                                        await launchUrl(url);
+                                                      }
+                                                    },
+                                                    child: const Text("Llamar"),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          },
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(16),
+                                            child: Row(
+                                              children: [
+                                                const Icon(Icons.phone, size: 32, color: Colors.green),
+                                                const SizedBox(width: 16),
+                                                Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      "${c["nombre"]} – ${c["parentesco"]}",
+                                                      style: const TextStyle(
+                                                        fontSize: 20,
+                                                        fontWeight: FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                    Text(
+                                                      c["telefono"],
+                                                      style: const TextStyle(fontSize: 16),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+
+                                    const SizedBox(height: 20),
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: const Text("Cancelar", style: TextStyle(fontSize: 18)),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                          },
+                          icon: const Icon(Icons.phone, size: 30),
+                          label: const Text(
+                            'LLAMAR A CONTACTO',
+                            style: TextStyle(fontSize: 22),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                          ),
                         ),
                       ),
                     ],
@@ -497,8 +414,179 @@ class _PanelUsuarioState extends State<PanelUsuario> {
       ),
     );
   }
-// *** VERSION CON ALERTAS — GENERADA POR COPILOT ***
-// -------------------------------------------------------------
-// CIERRE FINAL DEL ARCHIVO
-// -------------------------------------------------------------
+}
+
+// ─────────────────────────────────────────────
+// MODAL DE CONFIRMACIÓN PARA VOLVER A CASA (CON SALIR)
+// ─────────────────────────────────────────────
+
+void mostrarModalConfirmacion(
+  BuildContext context,
+  double lat,
+  double lng,
+  String direccion,
+) {
+  showDialog(
+    context: context,
+    barrierDismissible: true,
+    builder: (context) {
+      return Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Align(
+                alignment: Alignment.topRight,
+                child: IconButton(
+                  icon: const Icon(Icons.close, size: 28),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+
+              const Icon(Icons.home, size: 60, color: Colors.teal),
+              const SizedBox(height: 10),
+
+              const Text(
+                "¿Quieres ir a esta dirección?",
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+
+              const SizedBox(height: 10),
+
+              Text(
+                direccion,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 18, color: Colors.black87),
+              ),
+
+              const SizedBox(height: 25),
+
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  abrirGoogleMaps(lat, lng);
+                },
+                icon: const Icon(Icons.navigation),
+                label: const Text("Sí, guiarme ahora"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 50),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  mostrarModalCambiarDireccion(context);
+                },
+                icon: const Icon(Icons.edit_location_alt),
+                label: const Text("Cambiar dirección"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueGrey,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 50),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  "Salir",
+                  style: TextStyle(fontSize: 18),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+// ─────────────────────────────────────────────
+// MODAL PARA DIRECCIÓN PUNTUAL
+// ─────────────────────────────────────────────
+
+void mostrarModalCambiarDireccion(BuildContext context) {
+  final TextEditingController direccionController = TextEditingController();
+
+  showDialog(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text(
+          "Nueva dirección o lugar puntual",
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                "Escribe una dirección puntual o un lugar de interés.\n"
+                "Ejemplos: farmacia, panadería, estación Renfe, Eroski…",
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 15),
+
+              TextField(
+                controller: direccionController,
+                decoration: const InputDecoration(
+                  labelText: "Dirección o lugar puntual",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              ElevatedButton(
+                onPressed: () {
+                  final nuevaDireccion = direccionController.text.trim();
+                  if (nuevaDireccion.isEmpty) return;
+
+                  Navigator.pop(context);
+                  abrirGoogleMapsTexto(nuevaDireccion);
+                },
+                child: const Text("Usar en Maps"),
+              ),
+
+              const SizedBox(height: 10),
+
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancelar"),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+// ─────────────────────────────────────────────
+// GOOGLE MAPS
+// ─────────────────────────────────────────────
+
+void abrirGoogleMaps(double lat, double lng) async {
+  final url =
+      "https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=walking";
+
+  await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+}
+
+void abrirGoogleMapsTexto(String texto) async {
+  final url = Uri.encodeFull(
+    "https://www.google.com/maps/dir/?api=1&destination=$texto&travelmode=walking",
+  );
+
+  await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
 }

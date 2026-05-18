@@ -24,6 +24,9 @@ dependencies:
   # Versiones compatibles para notificaciones
   flutter_local_notifications: ^17.1.2
   timezone: ^0.9.2
+  rxdart: ^0.28.0
+  geocoding: ^2.1.0
+
 
 flutter:
   uses-material-design: true

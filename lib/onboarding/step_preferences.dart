@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'onboarding_controller.dart';
 import '../screens/panel_usuario.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class StepPreferences extends StatelessWidget {
   final VoidCallback? onFinish;
@@ -36,7 +34,7 @@ class StepPreferences extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
 
-            // ⭐ SOLO RUTINA — SIN NOMBRE, EDAD, GÉNERO
+            // ⭐ SOLO RUTINA — SIN GUARDAR NADA AQUÍ
 
             TextField(
               decoration: const InputDecoration(labelText: 'Desayuno (ej: 7:00–9:00)'),
@@ -122,36 +120,9 @@ class StepPreferences extends StatelessWidget {
 
             // ⭐ BOTÓN SIGUIENTE
             ElevatedButton(
-              onPressed: () async {
-                final uid = FirebaseAuth.instance.currentUser?.uid;
-
-                if (uid == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('No hay usuario autenticado')),
-                  );
-                  return;
-                }
-
-                final docRef = FirebaseFirestore.instance.collection('usuarios').doc(uid);
-
-                await docRef.set({
-                  // ⭐ SOLO PREFERENCIAS Y RUTINA
-                  'desayuno': controller.desayuno.isNotEmpty ? controller.desayuno : '7:00–9:00',
-                  'almuerzo': controller.almuerzo.isNotEmpty ? controller.almuerzo : '13:00–15:00',
-                  'cena': controller.cena.isNotEmpty ? controller.cena : '20:00–22:00',
-                  'dormir': controller.dormir.isNotEmpty ? controller.dormir : '00:30–07:00',
-
-                  'actividad': controller.actividad.isNotEmpty ? controller.actividad : 'Caminar',
-                  'energia': controller.energia.isNotEmpty ? controller.energia : 'Media',
-
-                  'onboardingCompletado': true,
-                }, SetOptions(merge: true));
-
-                if (context.mounted) {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (_) => const PanelUsuario()),
-                  );
+              onPressed: () {
+                if (onFinish != null) {
+                  onFinish!();
                 }
               },
               child: const Text("Siguiente"),

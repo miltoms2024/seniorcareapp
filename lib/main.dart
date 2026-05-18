@@ -2,9 +2,10 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'firebase_options.dart';
 import 'screens/panel_usuario.dart';
 import 'onboarding/onboarding_screen.dart';
@@ -13,28 +14,34 @@ import 'screens/perfil_usuario.dart';
 import 'onboarding/step_preferences.dart';
 import 'package:provider/provider.dart';
 import 'onboarding/onboarding_controller.dart';
-import 'screens/agregar_medicamento_screen.dart';
+
+// NUEVOS FORMULARIOS
+import 'screens/agregar_medicamento_largo.dart';
+import 'screens/agregar_medicamento_corto.dart';
+import 'screens/agregar_medicamento_eventual.dart';
+
+// LISTA UNIFICADA
 import 'screens/lista_medicamentos_screen.dart';
 
-// 🔥 IMPORTANTE: importa AlertasService
 import 'services/alertas_service.dart';
+import 'package:flutter/services.dart'; // ← NECESARIO PARA BLOQUEAR ORIENTACIÓN
+import 'package:firebase_auth/firebase_auth.dart'; // ← NECESARIO PARA AUTH
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 🔒 BLOQUEAR ORIENTACIÓN SOLO VERTICAL
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+  ]);
+
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await initializeDateFormatting('es_ES', null);
 
-  // 🔥 INICIALIZAR NOTIFICACIONES (OBLIGATORIO)
-  await AlertasService.inicializar();
+  // 🔥 LÍNEA QUE FALTABA PARA QUE NO FALLE FIRESTORE
+  await FirebaseAuth.instance.signInAnonymously();
 
-  try {
-    if (FirebaseAuth.instance.currentUser == null &&
-        (kIsWeb || Platform.isAndroid || Platform.isIOS)) {
-      await FirebaseAuth.instance.signInAnonymously();
-    }
-  } catch (e) {
-    debugPrint('Login anónimo falló: $e');
-  }
+  await AlertasService.inicializar();
 
   runApp(const MyApp());
 }
@@ -42,20 +49,9 @@ void main() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  Future<bool> verificarUsuarioEnFirestore() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return false;
-
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(uid)
-          .get();
-      return doc.exists;
-    } catch (e) {
-      debugPrint('Error al verificar Firestore: $e');
-      return false;
-    }
+  Future<bool> verificarRegistroLocal() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('registro_completado') ?? false;
   }
 
   @override
@@ -74,7 +70,7 @@ class MyApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
 
         home: FutureBuilder<bool>(
-          future: verificarUsuarioEnFirestore(),
+          future: verificarRegistroLocal(),
           builder: (context, snapshot) {
             if (!snapshot.hasData) {
               return const Scaffold(
@@ -82,8 +78,8 @@ class MyApp extends StatelessWidget {
               );
             }
 
-            final inicioEnHome = snapshot.data!;
-            return inicioEnHome ? const PanelUsuario() : const OnboardingScreen();
+            final registrado = snapshot.data!;
+            return registrado ? const PanelUsuario() : const OnboardingScreen();
           },
         ),
 
@@ -91,11 +87,19 @@ class MyApp extends StatelessWidget {
           '/onboarding': (context) => const OnboardingScreen(),
           '/home': (context) => const PanelUsuario(),
           '/editar_perfil': (context) => const EditarPerfilUsuario(),
+          '/editarPerfil': (context) => const EditarPerfilUsuario(),
+
           '/perfil': (context) => const PerfilUsuario(),
           '/preferencias': (context) => const StepPreferences(),
           '/panel': (context) => const PanelUsuario(),
-          '/login': (context) => const OnboardingScreen(),
-          '/agregar_medicamento': (context) => const AgregarMedicamentoScreen(),
+          
+
+          // NUEVAS RUTAS DE MEDICAMENTOS
+          '/agregar_medicamento_largo': (context) => AgregarMedicamentoLargoScreen(),
+          '/agregar_medicamento_corto': (context) => AgregarMedicamentoCortoScreen(),
+          '/agregar_medicamento_eventual': (context) => AgregarMedicamentoEventualScreen(),
+
+          // LISTA UNIFICADA
           '/lista_medicamentos': (context) => const ListaMedicamentosScreen(),
         },
       ),
